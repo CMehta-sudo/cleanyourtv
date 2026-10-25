@@ -1,2 +1,0 @@
-int drawable banner 0x7f010000
-int xml module_card 0x7f020000

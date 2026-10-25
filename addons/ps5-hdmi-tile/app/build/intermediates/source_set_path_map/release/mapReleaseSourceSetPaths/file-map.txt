@@ -1,7 +1,0 @@
-com.clean.ps5.app-pngs-0 /Users/chiragmehta/github/cleanyourtv/addons/ps5-hdmi-tile/app/build/generated/res/pngs/release
-com.clean.ps5.app-resValues-1 /Users/chiragmehta/github/cleanyourtv/addons/ps5-hdmi-tile/app/build/generated/res/resValues/release
-com.clean.ps5.app-packageReleaseResources-2 /Users/chiragmehta/github/cleanyourtv/addons/ps5-hdmi-tile/app/build/intermediates/incremental/release/packageReleaseResources/merged.dir
-com.clean.ps5.app-packageReleaseResources-3 /Users/chiragmehta/github/cleanyourtv/addons/ps5-hdmi-tile/app/build/intermediates/incremental/release/packageReleaseResources/stripped.dir
-com.clean.ps5.app-release-4 /Users/chiragmehta/github/cleanyourtv/addons/ps5-hdmi-tile/app/build/intermediates/merged_res/release/mergeReleaseResources
-com.clean.ps5.app-main-5 /Users/chiragmehta/github/cleanyourtv/addons/ps5-hdmi-tile/app/src/main/res
-com.clean.ps5.app-release-6 /Users/chiragmehta/github/cleanyourtv/addons/ps5-hdmi-tile/app/src/release/res

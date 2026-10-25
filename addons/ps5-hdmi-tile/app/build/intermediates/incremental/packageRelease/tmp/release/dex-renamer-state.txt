@@ -1,4 +1,0 @@
-#Sun Oct 25 15:21:54 IST 2026
-base.0=/Users/chiragmehta/github/cleanyourtv/addons/ps5-hdmi-tile/app/build/intermediates/dex/release/mergeDexRelease/classes.dex
-renamed.0=classes.dex
-path.0=classes.dex
