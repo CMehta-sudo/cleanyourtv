@@ -1,0 +1,2 @@
+com.clean.ps5:xml/module_card = 0x7f020000
+com.clean.ps5:drawable/banner = 0x7f010000
