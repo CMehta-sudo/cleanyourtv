@@ -36,6 +36,22 @@ PY=tools/venv/bin/python
 }
 
 tv() { "$PY" -I tools/tv.py "$@"; }
+assert_enabled() {
+  local packages
+  packages="$(tv 'pm list packages -e --user 0' | tr -d '\r')"
+  printf '%s\n' "$packages" | grep -Fx "package:$1" >/dev/null || {
+    echo "$1 is not enabled on the TV." >&2
+    return 1
+  }
+}
+assert_disabled() {
+  local packages
+  packages="$(tv 'pm list packages -d --user 0' | tr -d '\r')"
+  printf '%s\n' "$packages" | grep -Fx "package:$1" >/dev/null || {
+    echo "$1 is not disabled on the TV." >&2
+    return 1
+  }
+}
 
 DEVICE="$(tv 'getprop ro.product.device' | tr -d '\r[:space:]')"
 case "$DEVICE" in
@@ -67,6 +83,8 @@ esac
 # Restore built-in TV and Ambient screensaver services. Tatami remains installed but is not selected.
 tv 'pm enable --user 0 com.android.tv' >/dev/null
 tv 'pm enable --user 0 com.google.android.apps.tv.dreamx' >/dev/null
+assert_enabled com.android.tv
+assert_enabled com.google.android.apps.tv.dreamx
 tv 'settings put secure screensaver_components com.google.android.apps.tv.dreamx/.service.Backdrop' >/dev/null
 tv 'settings put secure screensaver_default_component com.google.android.apps.tv.dreamx/.service.Backdrop' >/dev/null
 tv 'settings put secure screensaver_enabled 1' >/dev/null
@@ -77,22 +95,34 @@ tv 'settings put secure screensaver_activate_on_dock 1' >/dev/null
 SERVICES="$(tv 'settings get secure enabled_accessibility_services' | tr -d '\r')"
 NEW_SERVICES="$(printf '%s' "$SERVICES" | "$PY" -I -c 'import sys; s=sys.stdin.read().strip(); print(":".join(x for x in s.split(":") if x and x != "com.gathin.tvhome/.InputKeyService" and x != "null"), end="")')"
 tv "settings put secure enabled_accessibility_services '$NEW_SERVICES'" >/dev/null
+SERVICES_NOW="$(tv 'settings get secure enabled_accessibility_services' | tr -d '\r')"
+case ":$SERVICES_NOW:" in
+  *:com.gathin.tvhome/.InputKeyService:*) echo "CleanYourTV's key helper is still enabled in Accessibility." >&2; exit 1 ;;
+esac
 
 # Disable optional apps and the custom Home only after the stock Home has been set and confirmed.
 # Each package stays installed and can be re-enabled in Android Settings or with pm enable.
 tv 'pm disable-user --user 0 io.github.pbanddev.tatami' >/dev/null
 tv 'pm disable-user --user 0 io.github.maxhayim.remoteaccess' >/dev/null
 tv 'pm disable-user --user 0 com.gathin.tvhome' >/dev/null
+assert_disabled io.github.pbanddev.tatami
+assert_disabled io.github.maxhayim.remoteaccess
+assert_disabled com.gathin.tvhome
 tv 'am start -a android.intent.action.MAIN -c android.intent.category.HOME' >/dev/null
 
 HOME_FINAL="$(tv 'cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME' | tr -d '\r' | tail -n 1)"
 SCREENSAVER_FINAL="$(tv 'settings get secure screensaver_default_component' | tr -d '\r')"
+SCREENSAVER_ENABLED="$(tv 'settings get secure screensaver_enabled' | tr -d '\r')"
 case "$HOME_FINAL" in
   com.google.android.apps.tv.launcherx/*) ;;
   *) echo "Final Home check failed ('$HOME_FINAL'). Re-enable com.gathin.tvhome if needed, then check Home in Settings." >&2; exit 1 ;;
 esac
 [ "$SCREENSAVER_FINAL" = 'com.google.android.apps.tv.dreamx/.service.Backdrop' ] || {
   echo "Stock Home is active, but the screensaver selection did not verify ('$SCREENSAVER_FINAL')." >&2
+  exit 1
+}
+[ "$SCREENSAVER_ENABLED" = '1' ] || {
+  echo "Stock Home is active, but the screensaver is not enabled (screensaver_enabled=$SCREENSAVER_ENABLED)." >&2
   exit 1
 }
 
