@@ -7,7 +7,8 @@
 #
 # ADB must be enabled and reachable while this runs. It restores the Sony package list with
 # tools/restore.sh, removes the theme overlay, enables stock Live TV and Ambient, selects Ambient
-# as the stock screensaver, then disables (does not uninstall) CleanYourTV, Tatami and Remote Access.
+# as the stock screensaver, then disables (does not uninstall) CleanYourTV, Tatami, Remote Access and
+# the PS5 input tile.
 # Streaming apps and user data are left installed. ADB is left in whatever state it had at start.
 set -euo pipefail
 
@@ -104,9 +105,11 @@ esac
 # Each package stays installed and can be re-enabled in Android Settings or with pm enable.
 tv 'pm disable-user --user 0 io.github.pbanddev.tatami' >/dev/null
 tv 'pm disable-user --user 0 io.github.maxhayim.remoteaccess' >/dev/null
+tv 'pm disable-user --user 0 com.clean.ps5' >/dev/null
 tv 'pm disable-user --user 0 com.gathin.tvhome' >/dev/null
 assert_disabled io.github.pbanddev.tatami
 assert_disabled io.github.maxhayim.remoteaccess
+assert_disabled com.clean.ps5
 assert_disabled com.gathin.tvhome
 tv 'am start -a android.intent.action.MAIN -c android.intent.category.HOME' >/dev/null
 
@@ -127,4 +130,4 @@ esac
 }
 
 echo "Stock Google TV Home is active. Live TV and Google TV Ambient are enabled."
-echo "Tatami, Remote Access and CleanYourTV are disabled but remain installed. ADB was not changed."
+echo "Tatami, Remote Access, the PS5 input tile and CleanYourTV are disabled but remain installed. ADB was not changed."

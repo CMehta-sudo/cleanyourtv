@@ -61,8 +61,8 @@ that unbinds the helper until Home next starts, and `restore_key_services` puts 
 With ADB enabled and the TV reachable, run `TV_HOST=<tv-ip> tools/restore-stock-vu3.sh` from the
 repository root. If using the local relay, use `TV_HOST=127.0.0.1 TV_PORT=5555`. The script removes the
 CleanYourTV theme, restores the Sony package list, selects the stock launcher and Google TV Ambient
-screensaver, and enables Live TV. It disables CleanYourTV, Tatami and Remote Access without uninstalling
-them. The script does not change ADB settings; turn ADB off separately after it finishes.
+screensaver, and enables Live TV. It disables CleanYourTV, Tatami, Remote Access and the PS5 input tile
+without uninstalling them. The script does not change ADB settings; turn ADB off separately after it finishes.
 
 ## Other notes from the second unit
 
