@@ -56,6 +56,14 @@ Home from inside an app lands on `com.gathin.tvhome/.MainActivity` (`mFocusedApp
 moment first. After a reboot the TV started into the new launcher. Do not force-stop the launcher from Settings:
 that unbinds the helper until Home next starts, and `restore_key_services` puts it back then.
 
+## Return this setup to stock Google TV Home
+
+With ADB enabled and the TV reachable, run `TV_HOST=<tv-ip> tools/restore-stock-vu3.sh` from the
+repository root. If using the local relay, use `TV_HOST=127.0.0.1 TV_PORT=5555`. The script removes the
+CleanYourTV theme, restores the Sony package list, selects the stock launcher and Google TV Ambient
+screensaver, and enables Live TV. It disables CleanYourTV, Tatami and Remote Access without uninstalling
+them. The script does not change ADB settings; turn ADB off separately after it finishes.
+
 ## Other notes from the second unit
 
 - Live TV is `com.android.tv`; the inputs are `com.realtek.tv.passthrough`, and the Input button goes to

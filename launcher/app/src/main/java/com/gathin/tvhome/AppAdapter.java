@@ -82,17 +82,26 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         int[] backdrop;
 
         Entry(String label, ComponentName component, Drawable banner, Drawable icon) {
-            this(APP, label, component, banner, icon, null, 0);
+            this(APP, label, component, banner, icon, null, 0, null);
+        }
+
+        Entry(String label, ComponentName component, Drawable banner, Drawable icon, String focusedName) {
+            this(APP, label, component, banner, icon, null, 0, focusedName);
         }
 
         Entry(int kind, String label, ComponentName component, Drawable banner, Drawable icon, String caption, int accent) {
+            this(kind, label, component, banner, icon, caption, accent, null);
+        }
+
+        Entry(int kind, String label, ComponentName component, Drawable banner, Drawable icon, String caption, int accent,
+              String focusedName) {
             this.kind = kind;
             this.label = label;
             this.component = component;
             this.pkg = component.getPackageName();
             this.banner = banner;
             this.icon = icon;
-            this.name = caption == null ? label : label + " \u00B7 " + caption;
+            this.name = focusedName != null ? focusedName : caption == null ? label : label + " \u00B7 " + caption;
             this.ambient = accent;
         }
     }
@@ -216,6 +225,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final boolean tileMenu;
     /** Tile names and bundled banners that replace the app's own (config.xml, app_labels and app_banners). */
     private final Map<String, String> appLabels, appBanners;
+    /** Names shown outside a tile while it is focused; the tile's own label is unchanged. */
+    private final Map<String, String> focusedAppNames;
     /** Every app tile is its icon on a card tinted from that icon, never its banner (config.xml, uniform_tiles). */
     private final boolean uniformTiles;
     /** Packages drawn from their icon and name even when they have a banner (config.xml icon_tiles). */
@@ -246,6 +257,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         this.iconTiles = new HashSet<>(Arrays.asList(ctx.getResources().getStringArray(R.array.icon_tiles)));
         this.tileMenu = cfg.tileMenu;
         this.appLabels = cfg.appLabels;
+        this.focusedAppNames = cfg.focusedAppNames;
         this.appBanners = cfg.appBanners;
         this.uniformTiles = cfg.uniformTiles;
         // Tiles keep their identity across reload(), so a focused tile stays on its app instead of
@@ -305,10 +317,12 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             // The icon is only drawn (and sampled for the glow) when there is no banner, so a tile with a
             // banner skips loading and decoding it.
             Drawable icon = banner == null ? ri.loadIcon(pm) : null;
+            String focusedName = focusedAppNames.get(pkg);
+            if (focusedName != null) focusedName = Cards.cleanLabel(focusedName, pkg);
             if (card != null) {
-                fresh.add(new Entry(Entry.CARD, label, component, banner, icon, card.caption, card.accent));
+                fresh.add(new Entry(Entry.CARD, label, component, banner, icon, card.caption, card.accent, focusedName));
             } else {
-                fresh.add(new Entry(label, component, banner, icon));
+                fresh.add(new Entry(label, component, banner, icon, focusedName));
             }
         }
         Collections.sort(fresh, (a, b) -> {
@@ -663,6 +677,10 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     String labelAt(int position) {
         return position >= 0 && position < items.size() ? items.get(position).label : "";
+    }
+
+    String focusedNameAt(int position) {
+        return position >= 0 && position < items.size() ? items.get(position).name : "";
     }
 
     String packageAt(int position) {

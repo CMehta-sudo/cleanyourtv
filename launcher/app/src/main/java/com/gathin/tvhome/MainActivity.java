@@ -209,6 +209,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private final Runnable turnTick = this::updatePanel;
     /** config.xml show_stats, overridable by a theme. Off: the line is gone and nothing is read. */
     private boolean showStats;
+    /** With stats enabled, show them from a top-bar icon instead of beneath the clock. */
+    private boolean statsPanel;
+    private View statsCpuPanelRow;
+    private TextView statsCpuPanelLabel, statsCpuPanelValue;
+    private TextView statsMemoryPanelLabel, statsMemoryPanelValue;
+    private TextView statsStoragePanelLabel, statsStoragePanelValue;
+    private StatsSnapshot latestStats;
     /** config.xml inputs_connected_only: the Inputs menu lists only connected inputs, the rest behind "More inputs". */
     private boolean inputsConnectedOnly;
     /** config.xml inputs_cec_state_only: only CEC device rows show a connection state, bare HDMI ports none. */
@@ -588,6 +595,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // The rotation runs on the clock that never jumps: setting the TV's time must not stall or stretch a turn.
         rotationStart = SystemClock.elapsedRealtime();
         showStats = cfg.showStats;
+        statsPanel = showStats && cfg.statsPanel;
         inputsConnectedOnly = cfg.inputsConnectedOnly;
         inputsCecStateOnly = cfg.inputsCecStateOnly;
         shamsi = cfg.shamsiDate;
@@ -820,6 +828,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
 
         btnInputs = findViewById(R.id.btnInputs);
+        TextView btnStats = findViewById(R.id.btnStats);
+        btnStats.setVisibility(statsPanel ? View.VISIBLE : View.GONE);
+        btnStats.setOnClickListener(v -> showStatsPanel());
         View btnSettings = findViewById(R.id.btnSettings);
         btnInputs.setOnClickListener(v -> showInputs());
         btnWifi.setOnClickListener(v -> openNetworkPill());
@@ -915,6 +926,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             return keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && v.getId() == rightButton;
         };
         btnInputs.setOnKeyListener(pillKeys);
+        btnStats.setOnKeyListener(pillKeys);
         btnWifi.setOnKeyListener(pillKeys);
         btnVpn.setOnKeyListener(pillKeys);
         btnSettings.setOnKeyListener(pillKeys);
@@ -922,7 +934,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         btnLibraryTop.setOnKeyListener(pillKeys);
         for (View button : topAppButtons) button.setOnKeyListener(pillKeys);
         if (advancedEffects) {
-            List<View> pills = new ArrayList<>(Arrays.asList(btnInputs, btnWifi, btnVpn, btnReorder, btnLibraryTop, btnSettings));
+            List<View> pills = new ArrayList<>(Arrays.asList(btnInputs, btnWifi, btnVpn, btnReorder, btnLibraryTop, btnStats, btnSettings));
             pills.addAll(topAppButtons);
             for (View button : pills) {
                 button.setOnFocusChangeListener((view, focused) -> view.animate()
@@ -1264,7 +1276,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // One LEANBACK query for both the tiles and the card checks.
         final List<ResolveInfo> leanback = getPackageManager().queryIntentActivities(
                 new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER), 0);
-        cards = moduleCards ? CardFeature.run(() -> Cards.discover(this, hiddenApps,
+        cards = moduleCards ? CardFeature.run(() -> Cards.discover(this,
                 () -> Cards.load(Cards.storeFile(this)), leanback), none) : none;
         adapter.reload(cards.isEmpty() ? none : CardFeature.run(() -> Cards.shown(cards), none), leanback);
         lastFocusedKey = returnKey;
@@ -1916,7 +1928,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     // ---- top shelf -------------------------------------------------------------------------------
 
     private void showHero(int position, float dockTopInRoot) {
-        String label = adapter.labelAt(position);
+        String label = adapter.focusedNameAt(position);
         int color = adapter.ambientColorAt(position);
         float y = dockTopInRoot - 14 * density - 26 * density - hero.getHeight();
         boolean changed = !label.contentEquals(heroName.getText());
@@ -2261,7 +2273,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private void startStats() {
         if (statsThread != null) return;
-        stats.setVisibility(View.VISIBLE);
+        stats.setVisibility(statsPanel ? View.GONE : View.VISIBLE);
         cpuTotalPrev = -1;
         idlePrev = -1;
         procStatDead = false;
@@ -2275,9 +2287,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             @Override
             public void run() {
                 if (statsBg != bg) return;
-                String line = readStatsLine();
+                StatsSnapshot snapshot = readStatsSnapshot();
                 handler.post(() -> {
-                    if (showStats && stats != null && statsBg == bg) stats.setText(line);
+                    if (showStats && stats != null && statsBg == bg) {
+                        stats.setText(snapshot.line);
+                        latestStats = snapshot;
+                        showStatsRows(snapshot);
+                    }
                 });
                 if (statsBg == bg) bg.postDelayed(this, STATS_MS);
             }
@@ -2301,26 +2317,59 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         line.append(part);
     }
 
-    private String readStatsLine() {
+    private static final class StatsSnapshot {
+        final String line;
+        final String[] labels;
+        final String[] values;
+
+        StatsSnapshot(String line, String[] labels, String[] values) {
+            this.line = line;
+            this.labels = labels;
+            this.values = values;
+        }
+    }
+
+    private String readStatsLabel(int resource) {
+        String pattern = getResources().getText(resource).toString();
+        int marker = pattern.indexOf("%1$");
+        return (marker < 0 ? pattern : pattern.substring(0, marker)).trim();
+    }
+
+    private String readStatsValue(int resource, String formatted) {
+        String label = readStatsLabel(resource);
+        return formatted.length() >= label.length() ? formatted.substring(label.length()).trim() : formatted;
+    }
+
+    private StatsSnapshot readStatsSnapshot() {
         int cpu = cpuPercent();
         if (cpu < 0) {
             try {
                 Thread.sleep(200);             // second sample, so the first line already has a CPU figure
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                return "";
+                return new StatsSnapshot("", new String[3], new String[]{"—", "—", "—"});
             }
             cpu = cpuPercent();
         }
         // Android 8 and later hide /proc/stat from apps on many TVs: then the line leaves CPU out rather than
         // showing a dash that never fills in.
+        String cpuText = cpu >= 0 ? getString(R.string.stats_cpu, cpu) : "";
+        String cpuLabel = readStatsLabel(R.string.stats_cpu);
+        String cpuValue = cpuText.isEmpty() ? "—" : readStatsValue(R.string.stats_cpu, cpuText);
         StringBuilder line = new StringBuilder();
-        if (cpu >= 0) line.append(getString(R.string.stats_cpu, cpu));
+        if (!cpuText.isEmpty()) line.append(cpuText);
         long[] mem = memUsedOfTotalMb();
-        if (mem != null) appendStat(line, getString(R.string.stats_memory, mem[0], mem[1]));
+        String memoryText = mem != null ? getString(R.string.stats_memory, mem[0], mem[1]) : "";
+        if (!memoryText.isEmpty()) appendStat(line, memoryText);
         String free = formatGb(getResources(), Environment.getDataDirectory().getFreeSpace());
-        if (!free.isEmpty()) appendStat(line, getString(R.string.stats_storage, free));
-        return StatsText.forLocale(line.toString(), getResources().getConfiguration().getLocales().get(0));
+        String storageText = !free.isEmpty() ? getString(R.string.stats_storage, free) : "";
+        if (!storageText.isEmpty()) appendStat(line, storageText);
+        return new StatsSnapshot(
+                StatsText.forLocale(line.toString(), getResources().getConfiguration().getLocales().get(0)),
+                new String[]{cpuLabel, readStatsLabel(R.string.stats_memory), readStatsLabel(R.string.stats_storage)},
+                new String[]{cpuValue,
+                        memoryText.isEmpty() ? "—" : readStatsValue(R.string.stats_memory, memoryText),
+                        storageText.isEmpty() ? "—" : readStatsValue(R.string.stats_storage, storageText)});
     }
 
     // -1: need another sample. -2: this source cannot be read (Android 9 hides /proc/stat from apps).
@@ -3626,6 +3675,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         popup.setElevation(0f);
         popup.setOnDismissListener(() -> {
             if (openPopup == popup) openPopup = null;
+            if (statsCpuPanelLabel != null && panel.findViewById(R.id.label) == statsCpuPanelLabel) {
+                statsCpuPanelRow = null;
+                statsCpuPanelLabel = statsCpuPanelValue = null;
+                statsMemoryPanelLabel = statsMemoryPanelValue = null;
+                statsStoragePanelLabel = statsStoragePanelValue = null;
+            }
         });
         openPopup = popup;
         return popup;
@@ -3640,6 +3695,45 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         popup.showAsDropDown(anchor, 0, (int) (10 * density), gravity);
         panel.animate().alpha(1f).scaleY(1f).translationY(0f).setDuration(reducedMotion ? Motion.REDUCED_MS : 220)
                 .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
+    }
+
+    /** The round top-bar stats button opens the latest CPU, memory and storage readings. */
+    private void showStatsPanel() {
+        if (!statsPanel || openPopup != null) return;
+        View panel = getLayoutInflater().inflate(R.layout.popup_stats, root, false);
+        View cpuRow = panel.findViewById(R.id.statsCpuRow);
+        View memoryRow = panel.findViewById(R.id.statsMemoryRow);
+        View storageRow = panel.findViewById(R.id.statsStorageRow);
+        statsCpuPanelRow = cpuRow;
+        statsCpuPanelLabel = cpuRow.findViewById(R.id.label);
+        statsCpuPanelValue = cpuRow.findViewById(R.id.value);
+        statsMemoryPanelLabel = memoryRow.findViewById(R.id.label);
+        statsMemoryPanelValue = memoryRow.findViewById(R.id.value);
+        statsStoragePanelLabel = storageRow.findViewById(R.id.label);
+        statsStoragePanelValue = storageRow.findViewById(R.id.value);
+        PopupWindow popup = glassPopup(panel, Math.round(280 * density));
+        for (View row : new View[]{cpuRow, memoryRow, storageRow})
+            row.setOnClickListener(v -> popup.dismiss());
+        if (latestStats == null) {
+            showStatsRows(new StatsSnapshot("", new String[]{
+                    readStatsLabel(R.string.stats_cpu), readStatsLabel(R.string.stats_memory),
+                    readStatsLabel(R.string.stats_storage)}, new String[]{"—", "—", "—"}));
+        } else {
+            showStatsRows(latestStats);
+        }
+        dropIn(popup, panel, findViewById(R.id.btnStats), Gravity.END);
+        cpuRow.requestFocus();
+    }
+
+    private void showStatsRows(StatsSnapshot snapshot) {
+        if (statsCpuPanelLabel == null) return;
+        statsCpuPanelRow.setVisibility("—".equals(snapshot.values[0]) ? View.GONE : View.VISIBLE);
+        statsCpuPanelLabel.setText(snapshot.labels[0]);
+        statsCpuPanelValue.setText(snapshot.values[0]);
+        statsMemoryPanelLabel.setText(snapshot.labels[1]);
+        statsMemoryPanelValue.setText(snapshot.values[1]);
+        statsStoragePanelLabel.setText(snapshot.labels[2]);
+        statsStoragePanelValue.setText(snapshot.values[2]);
     }
 
     private View addSeparator(LinearLayout rows) {

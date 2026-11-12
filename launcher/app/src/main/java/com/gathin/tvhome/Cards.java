@@ -179,11 +179,12 @@ final class Cards {
     /**
      * Every valid card installed on this TV, with its state under the given records. One cheap
      * PackageManager query when no app declares a card; the app list is only walked when one does.
-     * hidden is the launcher's hidden_apps as in force (config.xml or a theme overlay): no card for those.
+     * hidden_apps hides an app's tile, but its declared card remains discoverable in the Module cards
+     * list so the owner can change that card's visibility independently.
      * The decision records are only read when some app declares a card, and leanback is the launcher's
      * own LEANBACK_LAUNCHER query, so the app list isn't queried twice.
      */
-    static List<Card> discover(Context ctx, Set<String> hidden, Supplier<Map<String, Record>> recordSource,
+    static List<Card> discover(Context ctx, Supplier<Map<String, Record>> recordSource,
                                List<ResolveInfo> leanback) {
         if ((ctx.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) selfCheck();
         List<Card> out = new ArrayList<>();
@@ -224,7 +225,7 @@ final class Cards {
             }
             String pkg = ri.activityInfo != null ? ri.activityInfo.packageName : "?";
             try {
-                Card card = read(ctx, pm, ri, tiles, names, uiNames, hidden, seen, records);
+                Card card = read(ctx, pm, ri, tiles, names, uiNames, seen, records);
                 seen.add(card.pkg);
                 out.add(card);
             } catch (CardException e) {
@@ -282,13 +283,12 @@ final class Cards {
     }
 
     private static Card read(Context ctx, PackageManager pm, ResolveInfo ri, Set<String> tiles,
-                             Map<String, Set<String>> names, Set<String> uiNames, Set<String> hidden,
+                             Map<String, Set<String>> names, Set<String> uiNames,
                              Set<String> seen, Map<String, Record> records) throws Exception {
         ActivityInfo ai = ri.activityInfo;
         if (ai == null) throw new CardException("not an activity");
         String pkg = ai.packageName;
         if (pkg.equals(ctx.getPackageName())) throw new CardException("the launcher itself");
-        if (hidden.contains(pkg)) throw new CardException("listed in hidden_apps");
         if (seen.contains(pkg)) throw new CardException("declares a second card; one per package is read");
         if (!ai.exported || !ai.enabled || !ai.applicationInfo.enabled) {
             throw new CardException("card activity is not exported and enabled");

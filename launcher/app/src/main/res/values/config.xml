@@ -89,6 +89,9 @@
     <!-- A tile's name instead of the app's own: "package=Name". It also shows above the dock. -->
     <string-array name="app_labels">
     </string-array>
+    <!-- A focused tile's name outside the tile, without changing the tile label: "package=Name". -->
+    <string-array name="focused_app_names">
+    </string-array>
     <!-- A tile's artwork instead of the app's banner: "package=drawable", a banner_* drawable bundled with the
          launcher (res/drawable). banner_tv is a magenta field with the Live TV glyph. -->
     <string-array name="app_banners">
@@ -478,6 +481,9 @@
     <!-- One line under the clock: CPU, free memory and free storage. Off by default; a theme can set
          "show_stats": true. Nothing is read, and the clock does not move, while this is false. -->
     <bool name="show_stats">false</bool>
+    <!-- With show_stats, put the values behind a round top-bar button instead of under the clock. A theme can set
+         "stats_panel": true. -->
+    <bool name="stats_panel">false</bool>
 
     <!-- Each team's next game in the F1 panel's place under the clock, rotating with the theme's F1 weekend: the package
          of an add-on that publishes them (the Game Day add-on: io.github.justinnewman.gameday; contract in docs/modules.md).
